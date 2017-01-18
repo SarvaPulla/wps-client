@@ -1,0 +1,225 @@
+{% extends "wps/base.html" %}
+{% load tethys_gizmos %}
+{% load staticfiles %}
+
+{% block app_content %}
+<h4>WPS Executor</h4>
+<div class="" id="loading-image" name="loading-image"></div>
+<form id="capabilities" name="capabilities" action="" method="post">
+  {% csrf_token %}
+  <label for="wps_url">WPS Server URL</label>
+  <input type="text" class="form-control" name="wps_url" id="wps_url" value="{{url}}" placeholder="Enter a Valid WPS Server URL">
+  <span class="help-block">Enter Your URL as follows https://mywpsserver.com/wps</span>
+  <input type="submit" name="submit-form" class="btn btn-primary" Value="Get Capabilities">
+</form>
+<form name="describe" id="describe" method="POST" action="getDescription/">
+  {% csrf_token %}
+  {% if title %}
+  {% gizmo select_input select_service %}
+  <input type="button" name="description-form" id="description-form" class="btn btn-primary" value="Get Description" onclick="getDescription('describe')">
+  {% endif %}
+  <input type="text" name="hidden_url" id="hidden_url" class="hidden" value="{{url}}">
+
+</form>
+<form name="execute" id="execute" action="getResults/" method="POST">
+  {% csrf_token %}
+  <br>
+  <div id="container">
+  </div>
+  <div id="response">
+  </div>
+</form>
+<form name="download" id="download" action="getXML/" method="POST">
+  {% csrf_token %}
+  <div id="xml_container"></div>
+</form>
+<div id="domMessage" style="display:none;">
+    <h1>We are processing your request.  Please be patient.</h1>
+</div>
+
+<!--<form name="capabilities" id="capabilities" method="POST" action="getCapabilities/">-->
+<!--{% csrf_token %}-->
+<!--<label for="wps_url">WPS Server URL</label>-->
+<!--<input type="text" class="form-control" name="wps_url" id="wps_url" placeholder="Enter a Valid WPS Server URL">-->
+<!--<span class="help-block">Enter Your URL as follows https://mywpsserver.com/wps</span>-->
+<!--<input type="button" name="submit-getCapabilities" id="submit-getCapabilities" class="btn btn-primary" value="Get Capabilities" onclick="getCapabilities('capabilities')">-->
+<!--</form>-->
+<!--<form name="description" id="description" method="POST" action="getDescription/">-->
+<!--{% csrf_token %}-->
+<!--<label class="control-label" for="select_service">Select a WPS Service</label>-->
+<!--<select id="select_service" name="select_service" style="width:100%;">-->
+<!--</select>-->
+<!--<input type="button" name="submit-getDescription" id="submit-getDescription" class="btn btn-primary" value="Get Description" onclick="getDescription('description')">-->
+<!--</form>-->
+
+
+<!--{% if data %}-->
+<!--{{data}}-->
+<!--{% endif %}-->
+{% endblock %}
+
+{% block scripts %}
+{{ block.super }}
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jquery.blockUI/2.70.0-2014.11.23/jquery.blockUI.min.js"></script>
+<script type="text/javascript">
+$( document ).ready(function() {
+   $(document).ajaxStart($.blockUI).ajaxStop($.unblockUI);
+});
+
+
+
+  function getCapabilities(form_id)
+  {
+
+    $form = $('#' + form_id);
+    var datastring = $form.serialize();
+    $.ajax({
+      type: "POST",
+      url: $form.attr('action'),
+      dataType: 'html',
+      data: datastring,
+      success: function(result)
+      {
+        /* The div contains now the updated form */
+        //$('#' + form_id).html(result);
+        json_response = JSON.parse(result);
+        if (json_response.status === 'success')
+        {
+          //$('#select_service').empty();
+          pop_value = json_response.pop;
+          for(var i=0; i<json_response.processes.length; i++)
+          {
+            process = json_response.processes[i];
+            var process_id = process.id;
+            var title = process.title;
+            //$('<option value="'+process_id+'">'+title+'</option>').appendTo("#select_service");
+            //$('<input type="text" class="form-control" name="'+process_id +'" id="'+process_id +'" placeholder="'+title+'" >').appendTo('#container');
+          }
+
+        }
+        else{
+          alert("Please Check your URL and Try Again.");
+        }
+      },
+      error: function(XMLHttpRequest, textStatus, errorThrown)
+      {
+        console.log(Error);
+      }
+    });
+  }
+
+  function getDescription(form_id)
+  {
+    $('#loading-image').show();
+    $.blockUI({ message: $('#domMessage') });
+    $form = $('#' + form_id);
+    var datastring = $form.serialize();
+    $.ajax({
+      type: "POST",
+      url: $form.attr('action'),
+      dataType: 'html',
+      data: datastring,
+      success: function(result)
+      {
+        /* The div contains now the updated form */
+        //$('#' + form_id).html(result);
+        json_response = JSON.parse(result);
+        if (json_response.status === 'success')
+        {
+          $('#container').empty();
+
+          inputs = json_response.input;
+          data_type = json_response.type;
+          metadata = json_response.meta;
+          default_val = json_response.default;
+          box_def = json_response.boxdef;
+          box_sup = json_response.boxsup;
+          var selected = $('#select_service').val();
+          var wps_url = $('#hidden_url').val();
+
+          $('<input type="hidden" class="form-control" name="hidden_service" id="hidden_service" class="hidden" value="'+selected+'">').appendTo('#container');
+          $('<input type="hidden" class="form-control" name="hidden_wps_url" id="hidden_wps_url" class="hidden" value="'+wps_url+'">').appendTo('#container');
+          for (var i=0;i<inputs.length;i++){
+            input = inputs[i];
+            meta = metadata[i];
+            def_val = default_val[i];
+            type = data_type[i];
+            box_def_val = box_def[i];
+            box_sup_val = box_sup[i];
+
+            var id = input.id;
+            var title = input.title;
+            var default_types = def_val.defaultTypes;
+            var supported_types = meta.supportedTypes;
+            var format = type.datatype;
+            var def_proj = box_def_val.projection;
+            var sup_proj = box_sup_val.projection;
+
+
+            $('<input type="text" class="form-control" name="'+id +'" id="'+id +'" placeholder="'+title+'" >').appendTo('#container');
+            $('<span class="help-block"><b>DataType: ' + format + '</b></span>').appendTo('#container');
+            if (format == "LiteralData"){
+              $('<span class="help-block"><b>Literal Data can accept a literal string value. Please enter a valid string.</b></span>').appendTo('#container');
+            }
+            if (format == "BoundingBoxData"){
+              $('<span class="help-block"><b>Default Projection:'+def_proj+' </b></span>').appendTo('#container');
+              if(sup_proj.length > 0){
+                $('<span class="help-block"><b>Supported Projection:'+sup_proj+' </b></span>').appendTo('#container');
+              }
+            }
+            if (default_types.length > 0) {
+              $('<span class="help-block"><b>Default Format(s):</b>' + default_types + '</span>').appendTo('#container');
+            }
+            if (supported_types.length > 0) {
+              $('<span class="help-block"><b>Supported Format(s):</b>' + supported_types + '</span>').appendTo('#container');
+            }
+          }
+          var button = '<input type="button" name="execute-process" id="execute-process" class="btn btn-primary" value="Execute Process" onclick="getResults(\'execute\')">';
+          $(button).appendTo('#container');
+        }
+        else{
+          alert("Please Check your URL and Try Again.");
+        }
+      },
+      error: function(XMLHttpRequest, textStatus, errorThrown)
+      {
+        console.log(Error);
+      }
+    });
+  }
+  function getResults(form_id)
+  {
+    $('#loading-image').show();
+    $form = $('#' + form_id);
+    var datastring = $form.serialize();
+    $.ajax({
+      type: "POST",
+      url: $form.attr('action'),
+      dataType: 'html',
+      data: datastring,
+      success: function(result)
+      {
+        /* The div contains now the updated form */
+        //$('#' + form_id).html(result);
+        json_response = JSON.parse(result);
+        if (json_response.status === 'success')
+        {
+          $('#response').empty();
+          $('#xml_container').empty();
+          var url = json_response.url;
+          $('<a href="'+url+'" target="_blank"><b>Response URL: ' + url + '</b></a>').appendTo('#response');
+          $('<input type="hidden" class="form-control" name="hidden_xml_url" id="hidden_xml_url" class="hidden" value="'+url+'">').appendTo('#xml_container');
+          $('<input type="submit" class="btn btn-primary" name="download_xml" id="download_xml" value="Download XML File">').appendTo('#xml_container');
+        }
+        else{
+          alert("Please Check your URL and Try Again.");
+        }
+      },
+      error: function(XMLHttpRequest, textStatus, errorThrown)
+      {
+        console.log(Error);
+      }
+    });
+  }
+</script>
+{% endblock %}
